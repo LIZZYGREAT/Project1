@@ -36,9 +36,9 @@ inline void putimage_alpha(int x, int y, IMAGE* img) {
 	int w = img->getwidth();
 	int h = img->getheight();
 	AlphaBlend(GetImageHDC(NULL), x, y, w, h, GetImageHDC(img), 0, 0, w, h, { AC_SRC_OVER,0,255,AC_SRC_ALPHA });
-}//处理不同图片
+}//处理不同图片,去除背景
 
-//截取一张图片不同部位
+//截取一张图片不同部位，去除背景
 void putimage_beta(int dstx, int dsty, int dstwidth, int dstheight, IMAGE* img, int srcX, int srcY) {
 	// 检查参数有效性
 	if (img == nullptr || dstwidth <= 0 || dstheight <= 0 || srcX < 0 || srcY < 0 || srcX >= img->getwidth() || srcY >= img->getheight()) {
@@ -62,9 +62,26 @@ void putimage_beta(int dstx, int dsty, int dstwidth, int dstheight, IMAGE* img, 
 		srcWidth,          // 源图像宽度
 		srcHeight,         // 源图像高度
 		{ AC_SRC_OVER, 0, 255, AC_SRC_ALPHA } // 混合操作标志
-	);
+	);//
 }
 
+// 封装的 loadimage_alpha 函数
+void loadimage_alpha(IMAGE* pDstImg, LPCTSTR pImgFile, int srcX, int srcY, int dstWidth, int dstHeight) {
+	// 首先创建一个临时 IMAGE 对象，用于加载完整的图片
+	IMAGE tempImg;
+	// 加载完整的图片到临时对象
+	loadimage(&tempImg, pImgFile);
+
+	// 调整目标 IMAGE 对象的大小为指定的截取区域大小
+	Resize(pDstImg, dstWidth, dstHeight);
+
+	// 获取临时图片和目标图片的设备上下文句柄
+	HDC hdcTemp = GetImageHDC(&tempImg);
+	HDC hdcDst = GetImageHDC(pDstImg);
+
+	// 使用 BitBlt 函数从临时图片中复制指定区域到目标图片
+	BitBlt(hdcDst, 0, 0, dstWidth, dstHeight, hdcTemp, srcX, srcY, SRCCOPY);
+}
 
 class Animation {
 public:
@@ -156,6 +173,65 @@ private:
 	vector<IMAGE*>frame_sketch_opposite;
 };
 
+class Animation_new {
+public:
+	Animation_new(LPCTSTR path, int x, int y, int width, int height, int interval) {
+		interval_ms = interval;
+		frame_list.resize(x * y);
+		frame_list_opposite.resize(x * y);
+
+		for (int i = 0; i < y; ++i) {
+			for (int j = 0; j < x; ++j) {
+				frame_list[i * x + j] = new IMAGE();
+				loadimage_alpha(frame_list[i * x + j], path, j * width, i * height, width, height);
+
+				frame_list_opposite[i * x + j] = new IMAGE();
+				Resize(frame_list_opposite[i * x + j], width, height);
+
+				DWORD* color_buffer = GetImageBuffer(frame_list[i * x + j]);
+				DWORD* color_buffer_opposite = GetImageBuffer(frame_list_opposite[i * x + j]);
+
+				for (int height_y = 0; height_y < height; ++height_y) {
+					for (int width_x = 0; width_x < width; ++width_x) {
+						int idx_img = height_y * width + width_x;
+						int idx_opposite_img = height_y * width + width - width_x - 1;
+						color_buffer_opposite[idx_opposite_img] = color_buffer[idx_img];
+					}
+				}
+			}
+		}
+	}
+
+	~Animation_new() {
+		// 释放 frame_list 中的内存
+		for (auto frame : frame_list) {
+			delete frame;
+		}
+		// 释放 frame_list_opposite 中的内存
+		for (auto frame : frame_list_opposite) {
+			delete frame;
+		}
+	}
+	void play(int pos_x,int pos_y,int delta,int dir) {
+		timer += delta;
+		if (timer > interval_ms) {
+			idx_frame = (idx_frame + 1) % frame_list.size();
+			timer = 0;
+		}
+		if (dir == 1) {
+			putimage_alpha(pos_x, pos_y, frame_list[idx_frame]);
+		}
+		if (dir == 2) {
+			putimage_alpha(pos_x, pos_y, frame_list_opposite[idx_frame]);
+		}
+	}
+private:
+	int interval_ms = 0;
+	int idx_frame = 0;
+	int timer = 0;
+	std::vector<IMAGE*> frame_list;
+	std::vector<IMAGE*> frame_list_opposite;
+};
 
 class Button {
 public:
@@ -258,18 +334,45 @@ public:
 
 private:
 	bool visited[5] = { false };
+	bool visited_energy[5] = { false };
+
 	DWORD lastHitTime = 0;
 	
 	int blinkTimer = 0;
 	bool isBlinking = false;
 
+	int max_energy = 100;
+	int current_energy = 100;
+
+	int idx_energy = 0;
+
+private:
+	Animation_new* fireball;
+	Animation_new* fireflush_left;
+	Animation_new* explode;
+	Animation_new* lava;
+	Animation_new* shift;
+
+	IMAGE shield;
 public:
 	Player() {
 		loadimage(&player_shadow, _T("images/shadow_player.png"));
 		anim_left = new Animation(_T("images/paimon_left_%d.png"), 6, 45);
+		loadimage(&shield, _T("skill/Q.png"));
+
+		fireball = new Animation_new(_T("skill/fireball.png"), 4, 4, 100, 100, 45);
+		fireflush_left = new Animation_new(_T("skill/3.png"), 5, 5, 70, 70, 45);
+		explode = new Animation_new(_T("skill/F.png"), 5, 8, 192, 192, 45);
+		lava = new Animation_new(_T("skill/2.png"), 2, 2, 170, 171, 45);
+		shift = new Animation_new(_T("skill/shift.png"), 10, 10, 80, 107, 45);
 	}
 	~Player() {
 		delete anim_left;
+		delete fireball;
+		delete fireflush_left;
+		delete explode;
+		delete lava;
+		delete shift;
 	}
 	void pocessevent(const ExMessage& msg) {
 		if (msg.message == WM_KEYDOWN) {
@@ -285,6 +388,12 @@ public:
 				break;
 			case VK_RIGHT:
 				is_move_right = true;
+				break;
+			case 0x31:
+				Fireball(msg.x, msg.y);
+				break;
+			case VK_SPACE:
+				Shift();
 				break;
 			}
 		}
@@ -305,6 +414,7 @@ public:
 			}
 		}
 	}
+
 	void move() {
 		int dir_x = is_move_right - is_move_left;
 		int dir_y = is_move_down - is_move_up;
@@ -312,9 +422,11 @@ public:
 		if (len_dir != 0) {
 			double normalized_x = dir_x / len_dir;
 			double normalized_y = dir_y / len_dir;
+
 			position.x += (int)(speed * normalized_x);
 			position.y += (int)(speed * normalized_y);
 		}
+
 		if (position.x <= 0) position.x = 0;
 		if (position.y <= 0) position.y = 0;
 		if (position.x + frame_width >= window_width)
@@ -324,28 +436,28 @@ public:
 	}
 	void max_hp(int x) {
 		//每10长度对应1滴血//x代表score
-		if (0<=x &&x< 10) {
+		if (0 <= x && x < 10) {
 			max_length = 100;
 		}
 		if (10 <= x && x < 25) {
 			max_length = 120;
 		}
-		if (25 <= x && x < 50 ) {
+		if (25 <= x && x < 50) {
 			max_length = 150;
 		}
-		if (50 <= x && x < 75 ) {
+		if (50 <= x && x < 75) {
 			max_length = 180;
 		}
-		if (75 <= x && x < 100 ) {
+		if (75 <= x && x < 100) {
 			max_length = 210;
 		}
-		if (x >= 100 ) {
+		if (x >= 100) {
 			max_length = 250;
 		}
 	}
 	void current_hp(int x) {
 		//随等级增加而增加血量//最大生命值增加也会增加当前生命值
-		if (10 <= x && x < 25 &&!visited[0]) {
+		if (10 <= x && x < 25 && !visited[0]) {
 			current_hp_player += 20;
 			visited[0] = true;
 		}
@@ -361,17 +473,106 @@ public:
 			current_hp_player += 30;
 			visited[3] = true;
 		}
-		if (x >= 100 &&!visited[4]) {
+		if (x >= 100 && !visited[4]) {
 			current_hp_player += 40;
 			visited[4] = true;
+		}
+		//每击杀10只小猪回复20滴血，最大回满
+		if (x - idx_score == 10) {
+			if (current_hp_player <= max_length - 20) {
+				current_hp_player += 20;
+				idx_score = x;
+			}
+			else if (current_hp_player < max_length) {
+				current_hp_player = max_length;
+				idx_score = x;
+			}
 		}
 	}
 	bool canBeHit() {
 		DWORD currentTime = GetTickCount();
-		return currentTime - lastHitTime >= 500; 
+		return currentTime - lastHitTime >= 500;
 	}
 	void setLastHitTime() {
 		lastHitTime = GetTickCount();
+	}
+
+	void  Max_energy(int score) {
+		if (score <= 10) {
+			max_energy = 100;
+		}
+		else if (score <= 25 && score > 10) {
+			max_energy = 150;
+		}
+		else if (score <= 50 && score > 25) {
+			max_energy = 200;
+		}
+		else if (score <= 75 && score > 50) {
+			max_energy = 250;
+		}
+		else if (score <= 100 && score > 75) {
+			max_energy = 300;
+		}
+		else if (score > 100) {
+			max_energy = 400;
+		}
+	}
+
+	void new_energy(int score) {
+		if (score <= 25 && score > 10 && !visited_energy[0]) {
+			current_energy += 50;
+			visited_energy[0] = true;
+		}
+		else if (score <= 50 && score > 25 && !visited_energy[1]) {
+			current_energy += 50;
+			visited_energy[1] = true;
+		}
+		else if (score <= 75 && score > 50 && !visited_energy[2]) {
+			current_energy += 50;
+			visited_energy[2] = true;
+		}
+		else if (score <= 100 && score > 75 && !visited_energy[3]) {
+			current_energy += 50;
+			visited_energy[3] = true;
+		}
+		else if (score > 100 && !visited_energy[4]) {
+			current_energy += 100;
+			visited_energy[4] = true;
+		}
+	}
+
+	void Fireball(int x, int y) {	//技能1  耗蓝25  CD 5S  效果：鼠标决定 击中地点 造成40点伤害
+		//函数效果 ：绘制图像+蓝耗解决 CD处理
+		if(current_energy >= 25){
+			current_energy -= 25;
+			fireball->play(x, y, 45, 1);
+		}
+	}
+	void Shift() {  //space  //不耗蓝  CD 3S  释放后有0.5s无敌帧  向前位移若干个身位，但位置不超过地图边缘，若超过则恰好卡在地图边缘
+		int dir_x = is_move_right - is_move_left;
+		int dir_y = is_move_down - is_move_up;
+		double len_dir = sqrt(dir_x * dir_x + dir_y * dir_y);
+		if (len_dir != 0) {
+			double normalized_x = dir_x / len_dir;
+			double normalized_y = dir_y / len_dir;
+
+			shift->play(position.x + 4 * frame_width * normalized_x, position.y + 3 * frame_height * normalized_y, 45, 1);
+
+			position.x = position.x + 4 * frame_width * normalized_x;
+			position.y = position.y + 3 * frame_height * normalized_y;
+		}
+	}
+	void Flashfire() {  //技能3	 //耗蓝50  10S	像指定方向发射冲击  伤害75点
+
+	}
+	void Expolde() {  //技能F  //耗蓝75   CD 15s 在自身周围产生一团爆炸圈 3 次 每次造成50点伤害
+
+	}
+	void Sheild() { //技能Q  //额外护盾槽 消耗护盾值50  // CD 1S  增加的护盾可以抵消50点伤害
+
+	}
+	void Lava() {  //技能2  //耗蓝 50  CD 8 S 存在4s的岩浆池 对指定位置 生成 释放时造成25点伤害，每秒灼烧伤害25点
+
 	}
 	void draw(int delta) {
 		setlinecolor(RGB(0, 0, 0));
@@ -461,13 +662,30 @@ private:
 
 private:
 	IMAGE player_shadow;
+
 	bool is_move_up = false;
 	bool is_move_down = false;
 	bool is_move_left = false;
 	bool is_move_right = false;
+
+	bool is_fireball = true;
+
+
+	bool is_fireflush = false;
+	bool is_explode = false;
+
+
+	bool is_shift = true;
+
+
+	bool is_shield = false;
+	bool is_lava = false;
+
 	Animation* anim_left;
 	POINT position = { 500,500 };
 	int max_length = 100;
+	int idx_score = 0;
+
 };
 
 
@@ -517,6 +735,7 @@ private:
 
 public:
 	int current_hp_boar = 40;
+
 public:
 	Enemy() {
 		loadimage(&boar_shadow, _T("images/shadow_enemy.png"));
@@ -606,43 +825,37 @@ public:
 			max_length = frame_width;
 			speed = 2.5;
 		}
-		if (x == 100 ) {
+		if (x >= 100 ) {
 			max_length = 1.25 * frame_width;
-			speed = 3;
+			speed = 2.75;
 		}
 	}
-	void current_hp(int x) {//我们希望血条在满血的时候升级也会带来
-		if (current_hp_boar == max_length) {
-			if (x >= 25 && x < 50 && !visited[0]) {
-				current_hp_boar += 10;
-				visited[0] = true;
-			}
-			if (x >= 50 && x < 100 && !visited[1]) {
-				current_hp_boar += 10;
-				visited[1] = true;
-			}
-			if (x == 100 && !visited[2]) {
-				current_hp_boar +=10;
-				visited[2] = true;
-			}
+	void current_hp(int x) {
+		if (x >= 25 && !visited[0]) {
+			current_hp_boar += 20;
+			visited[0] = true;
+		}
+		if (x >= 50  && !visited[1]) {
+			current_hp_boar += 20;
+			visited[1] = true;
+		}
+		if (x >= 100 && !visited[2]) {
+			current_hp_boar += 20;
+			visited[2] = true;
 		}
 	}
 	void speed_up(const Player& paimon,int score) {
-		double distance = sqrt((paimon.GetPosition().x - position.x) * (paimon.GetPosition().x - position.x) +
-			(paimon.GetPosition().y - position.y) * (paimon.GetPosition().y - position.y));
-		if (score == 50 && !detected_speedup[2]) {
-			speed = 2.5;
-			detected_speedup[2] = true;
-		}
+		int distance_x = (paimon.GetPosition().x - position.x) > (position.x - paimon.GetPosition().x) ? (paimon.GetPosition().x - position.x) : (position.x - paimon.GetPosition().x);
+		int distance_y = (paimon.GetPosition().y - position.y) > (position.y - paimon.GetPosition().y) ? (paimon.GetPosition().y - position.y) : (position.y - paimon.GetPosition().y);
 		if (score < 50) {
-			if (distance <= paimon.frame_width * 5 && !detected_speedup[0]) {
+			if ((distance_x+distance_y) <= paimon.frame_width * 8 && !detected_speedup[0]) {
 				speed *= 1.3;
 				detected_speedup[0] = true;
 			}
 		}
 		else {
-			if (distance <= paimon.frame_width * 7 && !detected_speedup[1]) {
-				speed *= 1.3;
+			if ((distance_x+distance_y) <= paimon.frame_width * 10 && !detected_speedup[1]) {
+				speed *= 1.1;
 				detected_speedup[1] = true;
 			}
 		}
@@ -652,13 +865,14 @@ public:
 		setlinecolor(RGB(0, 0, 0));
 		rectangle(position.x + 0.5 * (frame_width - max_length), position.y -5 , position.x + 0.5 * (frame_width + max_length), position.y -2);
 
-		if (current_hp_boar < max_length) {
+		if (current_hp_boar < max_length) {//损失血条
 			setfillcolor(RGB(255, 193, 193));
-			fillrectangle(position.x + 0.5 * (frame_width + current_hp_boar), position.y - 5, position.x + 0.5 * (frame_width + max_length), position.y - 2);
+			fillrectangle(position.x + 0.5 * (frame_width -max_length)+current_hp_boar, position.y - 5, position.x + 0.5 * (frame_width + max_length), position.y - 2);
 		}
 
+		//实时血条
 		setfillcolor(RGB(238, 44, 44));
-		fillrectangle(position.x + 0.5 * (frame_width - max_length), position.y -5, position.x + 0.5 * (frame_width + current_hp_boar), position.y -2);
+		fillrectangle(position.x + 0.5 * (frame_width - max_length), position.y -5, position.x + 0.5 * (frame_width -max_length)+current_hp_boar, position.y -2);
 
 
 		int shadow_pos_x = position.x + (frame_width - shadow_width) / 2;
@@ -697,9 +911,80 @@ private:
 	bool alive = true;
 
 	bool visited[3] = { false };
-
 	bool detected_speedup[3] = { false };
 };
+
+
+class Boss {
+private:
+	int max_length = 800;
+public:
+	const int frame_width = 170;
+	const int frame_height = 188;
+
+	int current_hp_boss = 800;
+
+public:
+	Boss() {
+		loadimage(&boss_shadow, _T("images/shadow_enemy.png"));
+		anim_left = new Animation_new(_T("boss1/boss1.png"), 4, 2, frame_width, frame_height, 45);
+	}
+	~Boss(){
+		delete anim_left;
+	}
+	void draw(int delta) {
+
+		//boss上方小血条
+		setlinecolor(RGB(0, 0, 0));
+		rectangle(position.x + 0.5 * (frame_width - 0.1*max_length), position.y - 5, position.x + 0.5 * (frame_width + 0.1*max_length), position.y - 2);
+
+		if (current_hp_boss < max_length) {//损失血条
+			setfillcolor(RGB(255, 193, 193));
+			fillrectangle(position.x + 0.5 * (frame_width - 0.1*max_length) + 0.1*current_hp_boss, position.y - 5, position.x + 0.5 * (frame_width + 0.1*max_length), position.y - 2);
+		}
+
+		//实时血条
+		setfillcolor(RGB(238, 44, 44));
+		fillrectangle(position.x + 0.5 * (frame_width - 0.1*max_length), position.y - 5, position.x + 0.5 * (frame_width - 0.1*max_length) + 0.1*current_hp_boss, position.y - 2);
+
+		//屏幕上方大血条
+		setlinecolor(RGB(0, 0, 0));
+		rectangle(0.5 * (window_width - max_length), 90, 0.5 * (window_width + max_length), 100);
+
+		if (current_hp_boss < max_length) {//损失血条
+			setfillcolor(RGB(255, 193, 193));
+			fillrectangle(0.5*(window_width - max_length) + current_hp_boss, 90, 0.5 * (window_width + max_length), 100);
+		}
+
+		//实时血条
+		setfillcolor(RGB(238, 44, 44));
+		fillrectangle(0.5 * (window_width - max_length), 90, 0.5 * (window_width - max_length)+current_hp_boss,100);
+
+		int shadow_pos_x = position.x + (frame_width - shadow_width) / 2;
+		int shadow_pos_y = position.y + frame_height  -10;
+		
+		putimage_alpha(shadow_pos_x, shadow_pos_y, &boss_shadow);
+
+		if (facing_left) {
+			anim_left->play(position.x, position.y, 45, 1);
+		}
+		else {
+			anim_left->play(position.x, position.y, 45, 2);
+		}
+	}
+
+private:
+	const int speed = 1;
+	const int shadow_width = 32;
+
+private:
+	IMAGE boss_shadow;
+	Animation_new* anim_left;
+	POINT position = { 800,360 };
+
+	bool facing_left = false;
+};
+
 
 void generateboar(vector<Enemy*>& enemy_list,int x) {
 	static int interval = 80;
@@ -713,7 +998,7 @@ void generateboar(vector<Enemy*>& enemy_list,int x) {
 		interval = 65;
 	}
 	if (75 <= x ) {
-		interval = 75;
+		interval = 60;
 	}
 	static int counter = 0;
 	if ((++counter) % interval == 0)
@@ -723,22 +1008,31 @@ void generateboar(vector<Enemy*>& enemy_list,int x) {
 void updatebullets(vector<Bullet>& bullet_list, const Player& paimon,int x) {
 	static double r_speed = 0.0025;
 	static double t_speed = 0.0025;
-	if (0 <= x &&x< 20) {
-		r_speed = 0.0025;
+	bullet_list.resize(2);
+	if (10 <= x &&x< 25) {
+		r_speed = 0.0030;
 		t_speed = 0.0025;
+		bullet_list.resize(2);
 	}
-	if (20 <= x &&x< 50) {
+	if (25 <= x &&x< 50) {
 		r_speed = 0.0030;
 		t_speed = 0.0030;
+		bullet_list.resize(3);
 	}
 	if (50 <= x &&x< 75) {
 		r_speed = 0.0035;
 		t_speed = 0.0035;
+		bullet_list.resize(4);
 	}
-	if (75 <= x ) {
+	if (75 <= x&&x<100 ) {
 		r_speed = 0.0040;
 		t_speed = 0.0040;
+		bullet_list.resize(5);
 	}
+	if (100 <= x) {
+		bullet_list.resize(6);
+	}
+
 	double radian_interval = 2 * 3.14159 / bullet_list.size();
 	POINT player_position = paimon.GetPosition();
 	double radius = 80 + 40 * sin(GetTickCount() * r_speed);
@@ -760,6 +1054,8 @@ void drawscore(int score) {
 }
 
 int main() {
+
+	srand(time(NULL));
 	initgraph(1280, 720);
 
 	mciSendString(_T("open mus/bgm.mp3 alias bgm"), NULL, 0, NULL);
@@ -774,9 +1070,10 @@ int main() {
 	IMAGE image_background;
 
 	Player paimon;
+	Boss boss1;
 
 	vector<Enemy*> boar_list;
-	vector<Bullet>bullet_list(3);
+	vector<Bullet>bullet_list;
 
 	RECT region_btn_start_game, region_btn_quit_game;
 
@@ -797,7 +1094,7 @@ int main() {
 		_T("images/quit_pushed.png"));
 
 	loadimage(&img_menu, _T("images/menu.png"));
-	loadimage(&image_background, _T("images/background.png"));
+	loadimage(&image_background, _T("scene/scene1.png"));
 
 	BeginBatchDraw();
 
@@ -816,8 +1113,12 @@ int main() {
 			paimon.move();
 			paimon.current_hp(score);
 			paimon.max_hp(score);
+			paimon.new_energy(score);
+			paimon.Max_energy(score);
+
 			updatebullets(bullet_list, paimon,score);
 			generateboar(boar_list,score);
+
 			for (Enemy* boar : boar_list) {
 				boar->speed_up(paimon,score);
 				boar->move(paimon);
@@ -851,6 +1152,7 @@ int main() {
 		if (is_game_started) {
 			putimage(0, 0, &image_background);
 			paimon.draw(1000 / 144);
+			boss1.draw(1000 / 144);
 			for (Enemy* boar : boar_list) {
 				boar->draw(1000 / 144);
 			}
@@ -882,9 +1184,14 @@ int main() {
 			Sleep(1000 / 144 - delta_time);
 		}
 	}
+	mciSendString(_T("close bgm"), NULL, 0, NULL);
+
+	mciSendString(_T("close hit"), NULL, 0, NULL);
+
 	EndBatchDraw();
 	for (Enemy* boar : boar_list) {
 		delete boar;
 	}
 	return 0;
+
 }
