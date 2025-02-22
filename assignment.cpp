@@ -385,6 +385,25 @@ public:
 		setfillcolor(RGB(238, 44, 44));
 		fillrectangle(0, 30, current_hp_player, 40);
 
+		setlinecolor(RGB(0, 0, 0));
+		rectangle(position.x+0.5*(frame_width-0.5*max_length), position.y - 14, position.x + 0.5 *(frame_width+0.5* max_length), position.y - 10);
+
+		if (current_hp_player < max_length) {
+			setfillcolor(RGB(255, 193, 193));
+			fillrectangle(position.x + 0.5 * (frame_width -0.5*max_length)+0.5*current_hp_player, position.y - 14, position.x + 0.5 *(frame_width+0.5* max_length), position.y - 10);
+		}
+
+		setfillcolor(RGB(238, 44, 44));
+		fillrectangle(position.x+0.5*(frame_width -0.5*max_length), position.y - 14, position.x + 0.5 *(frame_width-0.5*max_length)+0.5*current_hp_player, position.y - 10);
+
+		static TCHAR text[64];
+		swprintf_s(text, _T("当前玩家的血量为:%d / %d"), current_hp_player,max_length);
+
+
+		setbkmode(TRANSPARENT);
+		settextcolor(RGB(255, 85, 185));
+		outtextxy(current_hp_player + 10, 27, text);
+
 		int shadow_pos_x = position.x + (frame_width - shadow_width) / 2;
 		int shadow_pos_y = position.y + frame_height - 8;
 
@@ -455,6 +474,9 @@ private:
 class Bullet {
 public:
 	POINT position = { 0,0 };
+	int power = 20;
+private:
+	bool visited[4] = { false };
 public:
 	Bullet() = default;
 	~Bullet() = default;
@@ -464,12 +486,37 @@ public:
 		setfillcolor(RGB(200, 75, 10));
 		fillcircle(position.x, position.y, RADIUS);
 	}
+	void attackpower(int x) {
+		if (x < 25&&x>=10 && !visited[0]) {
+			power += 10;
+			visited[0] = true;
+		}
+		else if (x >= 25 && x < 50 && !visited[1]) {
+			power += 10;
+			visited[1] = true;
+		}
+		else if (x >= 50 && x < 100 && !visited[2]) {
+			power += 10;
+			visited[2] = true;
+		}
+		else if (x >= 10 && !visited[3]) {
+			power += 10;
+			visited[3] = true;
+		}
+	}
 private:
 	const int RADIUS = 10;
 };
 
 
 class Enemy {
+private:
+	DWORD lastHitTime = 0;
+
+	int max_length = 40;
+
+public:
+	int current_hp_boar = 40;
 public:
 	Enemy() {
 		loadimage(&boar_shadow, _T("images/shadow_enemy.png"));
@@ -503,9 +550,21 @@ public:
 			break;
 		}
 	}
+	bool canBeHit() {
+		DWORD currentTime = GetTickCount();
+		return currentTime - lastHitTime >= 100;
+	}
+	void setLastHitTime() {
+		lastHitTime = GetTickCount();
+	}
 	bool checkbulletcollision(const Bullet& bullet) {
 		bool is_overlap_x = bullet.position.x > position.x && bullet.position.x <= position.x + frame_width;
 		bool is_overlap_y = bullet.position.y > position.y && bullet.position.y <= position.y + frame_height;
+
+		if (is_overlap_x && is_overlap_y && canBeHit()) {
+			current_hp_boar -= bullet.power;
+			setLastHitTime();
+		}
 		return is_overlap_x && is_overlap_y;
 	}
 	bool checkplayercollision(Player& paimon) {
@@ -538,13 +597,12 @@ public:
 			facing_left = false;
 		}
 	}
-	int max_hp(int x) {
-		static int max_length = 0.5 * frame_width;
-		if (x == 25 ) {
+	void max_hp(int x) {
+		if (x>=25 && x<50 ) {
 			max_length = 0.75 * frame_width;
 			speed = 2.2;
 		}
-		if (x == 50) {
+		if (x >= 50 && x<100) {
 			max_length = frame_width;
 			speed = 2.5;
 		}
@@ -552,28 +610,56 @@ public:
 			max_length = 1.25 * frame_width;
 			speed = 3;
 		}
-		return max_length;
+	}
+	void current_hp(int x) {//我们希望血条在满血的时候升级也会带来
+		if (current_hp_boar == max_length) {
+			if (x >= 25 && x < 50 && !visited[0]) {
+				current_hp_boar += 10;
+				visited[0] = true;
+			}
+			if (x >= 50 && x < 100 && !visited[1]) {
+				current_hp_boar += 10;
+				visited[1] = true;
+			}
+			if (x == 100 && !visited[2]) {
+				current_hp_boar +=10;
+				visited[2] = true;
+			}
+		}
 	}
 	void speed_up(const Player& paimon,int score) {
 		double distance = sqrt((paimon.GetPosition().x - position.x) * (paimon.GetPosition().x - position.x) +
 			(paimon.GetPosition().y - position.y) * (paimon.GetPosition().y - position.y));
+		if (score == 50 && !detected_speedup[2]) {
+			speed = 2.5;
+			detected_speedup[2] = true;
+		}
 		if (score < 50) {
 			if (distance <= paimon.frame_width * 5 && !detected_speedup[0]) {
-				speed *= 1.5;
+				speed *= 1.3;
 				detected_speedup[0] = true;
 			}
 		}
 		else {
-			if (distance <= paimon.frame_width * 7                               && !detected_speedup[1]) {
-				speed *= 1.5;
+			if (distance <= paimon.frame_width * 7 && !detected_speedup[1]) {
+				speed *= 1.3;
 				detected_speedup[1] = true;
 			}
 		}
 	}
-	void draw(int delta,int max_length) {
+	void draw(int delta) {
 
+		setlinecolor(RGB(0, 0, 0));
 		rectangle(position.x + 0.5 * (frame_width - max_length), position.y -5 , position.x + 0.5 * (frame_width + max_length), position.y -2);
-		fillrectangle(position.x + 0.5 * (frame_width - max_length), position.y -5, position.x + 0.5 * (frame_width + max_length), position.y -2);
+
+		if (current_hp_boar < max_length) {
+			setfillcolor(RGB(255, 193, 193));
+			fillrectangle(position.x + 0.5 * (frame_width + current_hp_boar), position.y - 5, position.x + 0.5 * (frame_width + max_length), position.y - 2);
+		}
+
+		setfillcolor(RGB(238, 44, 44));
+		fillrectangle(position.x + 0.5 * (frame_width - max_length), position.y -5, position.x + 0.5 * (frame_width + current_hp_boar), position.y -2);
+
 
 		int shadow_pos_x = position.x + (frame_width - shadow_width) / 2;
 		int shadow_pos_y = position.y + frame_height - 25;
@@ -587,10 +673,10 @@ public:
 			anim_left->play(position.x, position.y, 45,2,0);
 		}
 	}
-	void Hurt() {
-		alive = false;
-	}
 	bool checkalive() {
+		if (current_hp_boar <= 0) {
+			alive = false;
+		}
 		return alive;
 	}
 	~Enemy() {
@@ -610,26 +696,24 @@ private:
 	bool facing_left = false;
 	bool alive = true;
 
-	int current_hp = 0;
 	bool visited[3] = { false };
 
-	bool detected_speedup[2] = { false };
+	bool detected_speedup[3] = { false };
 };
 
-
 void generateboar(vector<Enemy*>& enemy_list,int x) {
-	static int interval = 75;
+	static int interval = 80;
 	if (0<= x && x< 20) {
-		interval = 75;
+		interval = 80;
 	}
 	if (20 <= x && x<50) {
-		interval = 65;
+		interval = 70;
 	}
 	if (50 <= x  && x < 75) {
-		interval = 55;
+		interval = 65;
 	}
 	if (75 <= x ) {
-		interval = 40;
+		interval = 75;
 	}
 	static int counter = 0;
 	if ((++counter) % interval == 0)
@@ -683,11 +767,13 @@ int main() {
 
 
 	int score = 0;
-	Player paimon;
+
 	ExMessage msg;
 
 	IMAGE img_menu;
 	IMAGE image_background;
+
+	Player paimon;
 
 	vector<Enemy*> boar_list;
 	vector<Bullet>bullet_list(3);
@@ -734,9 +820,9 @@ int main() {
 			generateboar(boar_list,score);
 			for (Enemy* boar : boar_list) {
 				boar->speed_up(paimon,score);
-			}
-			for (Enemy* boar : boar_list) {
 				boar->move(paimon);
+				boar->current_hp(score);
+				boar->max_hp(score);
 			}
 			bool collision_detected = false;
 			for (Enemy* boar : boar_list) {
@@ -754,8 +840,9 @@ int main() {
 				for (const Bullet& bullet : bullet_list) {
 					if (boar->checkbulletcollision(bullet)) {
 						mciSendString(_T("play hit from 0"), NULL, 0, NULL);
-						boar->Hurt();
-						score++;
+						if (boar->current_hp_boar <= 0) {
+							score++;
+						}
 					}
 				}
 			}
@@ -765,7 +852,7 @@ int main() {
 			putimage(0, 0, &image_background);
 			paimon.draw(1000 / 144);
 			for (Enemy* boar : boar_list) {
-				boar->draw(1000 / 144,boar->max_hp(score));
+				boar->draw(1000 / 144);
 			}
 			for (const Bullet& bullet : bullet_list) {
 				bullet.draw();
