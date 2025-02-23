@@ -199,8 +199,8 @@ private:
 
 class Animation_new {
 public:
-	Animation_new(LPCTSTR path, int x, int y, int width, int height, int interval,int z) {
-		interval_ms = interval;
+	Animation_new(LPCTSTR path, int x, int y, int width, int height, int interval,int z){//int leftToRight) {  //参数讲解： x为横向个数，y为纵向个数，width，height分别为单个的宽高，interval为帧率间隔，z是判断是否需要处理黑色背景
+		interval_ms = interval;                                                   //leftToRight 代表图片是从左到右处理还是从上倒下处理，若为1则从左到右，若为2则为从上到下
 
 		for (int i = 0; i < y; ++i) {
 			for (int j = 0; j < x; ++j) {
@@ -259,6 +259,17 @@ public:
 	void reset() {
 		idx_frame = 0;
 		timer = 0;
+	}
+	int getFrameCount() const {
+		return frame_list.size();
+	}
+
+	IMAGE* getFrame(int index) const {
+		return frame_list[index];
+	}
+
+	DWORD getTotalDuration() const {
+		return interval_ms * frame_list.size();
 	}
 private:
 	int interval_ms = 0;
@@ -399,17 +410,22 @@ private://处理CD问题与每秒回复问题
 	bool is_explode_anim_playing = false;  //记录fireball是否正在播放
 	DWORD explode_anim_start_time = 0;    //记录fireball 开始时间
 
+	DWORD is_fireflush_end = 0;
+	bool is_fireflush_anim_playing = false;
+	DWORD fireflush_anim_start_time = 0;
+	bool fireflush_animation_ended = false;
+
 	DWORD lastShieldRecoveryTime = 0;
 	const DWORD shieldRecoveryInterval = 1000;
 	const int shieldRecoveryAmount = 2;
 
 	DWORD lastEnergyRecoveryTime = 0;
 	const DWORD energyRecoveryInterval = 1000;
-	const int energyRecoveryAmount = 3;
+	const int energyRecoveryAmount = 2;
 	
 	DWORD lastHpRecoveryTime = 0;
 	const DWORD hpRecoveryInterval = 1000;
-	const int hpRecoveryAmount = 1;
+	const int hpRecoveryAmount = 2;
 
 public://获取鼠标点击时坐标
 	void setLeftClickPosition(int x, int y) {
@@ -428,6 +444,7 @@ private:
 
 	int fireball_x = 0;
 	int fireball_y = 0;
+
 public:
 	Player() {
 
@@ -436,9 +453,10 @@ public:
 
 		anim_left = new Animation(_T("images/paimon_left_%d.png"),6,45);
 		fireball = new Animation_new(_T("images/1.png"), 4, 4, 100, 100, 180,0);
-		fireflush = new Animation_new(_T("images/3.png"), 5, 5, 70, 70, 45,0);
+		fireflush = new Animation_new(_T("images/3.png"), 5, 5, 70, 70, 45,1);
+		firepart = new Animation_new(_T("images/3_part.png"), 5, 2, 70, 70, 45, 1);
+
 		explode = new Animation_new(_T("images/F.png"), 5, 8, 192, 192, 60,1);
-		lava = new Animation_new(_T("images/2.png"), 2, 2, 170, 171, 45,0);
 		shift = new Animation_new(_T("images/space.png"), 10, 10, 110, 146, 30,0);
 
 	}
@@ -466,17 +484,18 @@ public:
 				is_move_right = true;
 				break;
 			case '1':
-				if (GetTickCount() - is_fireball_end > 3000) {  //检查冷却时间
+				if (GetTickCount() - is_fireball_end > 5000) {  //检查冷却时间
 					is_fireball = true;
 					skill1_fireball();
 					is_fireball_end = GetTickCount();
 				}
 				break;
 			case '2':
-				is_lava = true;
-				break;
-			case '3':
-				is_fireflush = true;
+				if (GetTickCount() - is_fireflush_end > 1000) {
+					is_fireflush = true;
+					skill2_fireflush();
+					is_fireflush_end = GetTickCount();
+				}
 				break;
 			case VK_SPACE:
 				if (GetTickCount() - is_shift_end > 3000) {  // 检查冷却时间
@@ -489,7 +508,7 @@ public:
 				skillq_shield(get_score);
 				break;
 			case 'R':
-				if (GetTickCount() - is_explode_end > 5000) {
+				if (GetTickCount() - is_explode_end > 10000) {
 					is_explode = true;
 					skillr_expolde();
 					is_explode_end = GetTickCount();
@@ -519,10 +538,9 @@ public:
 				}
 				break;
 			case '2':
-				is_lava = false;
-				break;
-			case '3':
+				if (!is_fireflush_anim_playing) {
 				is_fireflush = false;
+			}
 				break;
 			case VK_SPACE:
 				is_shift = false;
@@ -692,34 +710,6 @@ public:
 		int energy_increase = max_energy - old_max_energy;
 		current_energy = min(current_energy + energy_increase, max_energy);
 	}
-
-	void new_energy(int score) {
-		if (score >= 10 && !visited_energy[0]) {
-			current_energy += 50;
-			visited_energy[0] = true;
-		}
-		else if (score >= 25 && !visited_energy[1]) {
-			current_energy += 50;
-			visited_energy[1] = true;
-		}
-		else if (score >= 50 && !visited_energy[2]) {
-			current_energy += 50;
-			visited_energy[2] = true;
-		}
-		else if (score >= 75 && !visited_energy[3]) {
-			current_energy += 50;
-			visited_energy[3] = true;
-		}
-		else if (score >= 100 && !visited_energy[4]) {
-			current_energy += 100;
-			visited_energy[4] = true;
-		}
-		if (score - idx_energy > 0) {
-			current_energy += min(3 * (score - idx_energy), max_energy - current_energy);
-			idx_energy = score;
-		}
-	}
-
 	void current_energy_recovery() {
 		DWORD currentTime = GetTickCount();
 		if (currentTime - lastEnergyRecoveryTime >= energyRecoveryInterval) {
@@ -727,7 +717,6 @@ public:
 			lastEnergyRecoveryTime = currentTime;
 		}
 	}
-
 	void Getscore(int x) {
 		get_score = x;
 	}
@@ -742,7 +731,7 @@ public:
 			fireball_x = getLeftClickX();
 			fireball_y = getLeftClickY();
 		}
-		explode->reset();
+		fireball->reset();
 	}
 	void draw_fireball() {
 		DWORD current_time = GetTickCount();
@@ -776,11 +765,14 @@ public:
 		is_shift_anim_playing = true;
 		shift_anim_start_time = GetTickCount();
 	}
-	void skill3_fireflush(int x,int y) {  //技能3	 //耗蓝50  10S	 伤害75点 只可向上下左右方向进行发射
+	void skill2_fireflush() {  //技能3	 //耗蓝50  10S	 伤害75点 只可向上下左右方向进行发射
 		if (current_energy > 50) {
-			current_energy -= 30;
-		}
-		
+			current_energy -= 50;
+		}	
+		is_fireflush_anim_playing = true;
+		fireflush_anim_start_time = GetTickCount();
+		fireflush->reset();
+		fireflush_animation_ended = false;
 	}
 	void skillr_expolde() {  //技能F  //耗蓝75   CD 15s 在自身周围产生一团爆炸圈 3 次 每次造成50点伤害
 		if (current_energy >= 75) {
@@ -788,14 +780,12 @@ public:
 		}
 		is_explode_anim_playing = true;
 		explode_anim_start_time = GetTickCount();
-
 		explode->reset();
 	}
 	void skillq_shield(int score) { //技能Q  //额外护盾槽 消耗护盾值50  // CD 1S  增加的护盾可以抵消50点伤害
 		if (current_protective >= 50 && protectivevalue <=80) {
 			current_protective -= 50;
-			if (score < 25)
-			{
+			if (score < 25){
 				protectivevalue += 30;
 			}
 			if (score >= 25 && score < 50) {
@@ -807,11 +797,6 @@ public:
 			if (score >= 100) {
 				protectivevalue +=75;
 			}
-		}
-	}
-	void skill2_lava(int x,int y) {  //技能2  //耗蓝 50  CD 8 S 存在4s的岩浆池 对指定位置 生成 释放时造成25点伤害，每秒灼烧伤害25点
-		if (current_energy > 50) {
-			current_energy -= 50;
 		}
 	}
 	void draw(int delta) {
@@ -896,17 +881,34 @@ public:
 		if (protectivevalue > 0) {
 			putimage_alpha(position.x +0.5*frame_width-60, position.y+0.5*frame_height -60, &shield);
 		}
-
 		//绘制explode
 		if (is_explode) {
 			DWORD current_time_explode = GetTickCount();
 			if (is_explode_anim_playing) {
-				if (current_time_explode - explode_anim_start_time < 45*40+1200+2100) {
+				if (current_time_explode - explode_anim_start_time < 45 * 40 + 1200 + 2000) {
 					explode->play(position.x + 0.5 * frame_width - 96, position.y + 0.5 * frame_height - 96, 30, 1);
 				}
-				else {
-					is_explode_anim_playing = false;
+			}
+		}
+		//绘制fireflush
+		if (is_fireflush) {
+			DWORD current_time_fireflush = GetTickCount();
+			DWORD elapsed_time = current_time_fireflush - fireflush_anim_start_time;
+			if(!fireflush_animation_ended) {
+				if (elapsed_time < fireflush->getTotalDuration()&&(200 + (current_time_fireflush - fireflush_anim_start_time) * 0.3) < window_width) {
+					fireflush->play((200 + (current_time_fireflush - fireflush_anim_start_time) * 0.3), 200, 30, 1);
 				}
+				else {
+					// 动画第一轮播放结束，设置标志位
+					fireflush_animation_ended = true;
+				}
+			}
+			if (fireflush_animation_ended) {
+				current_time_fireflush = GetTickCount();
+				firepart->play((200 + (current_time_fireflush - fireflush_anim_start_time) * 0.3), 200, 30, 1);
+			}
+			if((200 + (current_time_fireflush - fireflush_anim_start_time) * 0.3) >= window_width) {
+				fireflush_animation_ended = false;
 			}
 		}
 
@@ -959,7 +961,6 @@ public:
 				anim_left->play(position.x, position.y, 45, 2, 0);
 			}
 		}
-
 		//绘制闪现
 
 		DWORD current_time = GetTickCount();
@@ -982,10 +983,10 @@ private:
 private:
 
 	IMAGE player_shadow;
-
 	IMAGE shield;
 	Animation_new* fireball;
 	Animation_new* fireflush;
+	Animation_new* firepart;
 	Animation_new* explode;
 	Animation_new* lava;
 	Animation_new* shift;
@@ -1474,7 +1475,6 @@ int main() {
 			paimon.current_hp(score);
 			paimon.max_hp(score);
 			paimon.Getscore(score);
-			paimon.new_energy(score);
 			paimon.Max_energy(score);
 			paimon.new_protective(score);
 			paimon.Max_protective(score);
