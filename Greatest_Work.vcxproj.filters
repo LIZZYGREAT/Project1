@@ -1,0 +1,123 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="头文件\绘图">
+      <UniqueIdentifier>{78e77fe3-8e78-4ca7-96b5-f705c2b26748}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\工具">
+      <UniqueIdentifier>{14aac3d0-aeaf-49db-89c5-34e9ed5bb80d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\角色">
+      <UniqueIdentifier>{9ccd7c70-9a70-4d93-b279-731307efd030}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\碰撞">
+      <UniqueIdentifier>{f5348fe1-658c-42f8-95bb-d72633394a08}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\资源管理器">
+      <UniqueIdentifier>{7fd2ef06-3877-4d99-b796-ab7b92305e97}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\角色\状态机">
+      <UniqueIdentifier>{f67e1897-84a3-4e67-b0e4-070e5d8c33b8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\角色\玩家">
+      <UniqueIdentifier>{572da009-05cc-482c-aa3b-fea82b3a6102}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\角色\角色基类">
+      <UniqueIdentifier>{cb44a7b1-220a-481b-b889-685bda3ad2c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\角色\敌人">
+      <UniqueIdentifier>{068e690e-a96b-45ae-95aa-d99ba8f96449}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="collision_manager.cpp">
+      <Filter>头文件\碰撞</Filter>
+    </ClCompile>
+    <ClCompile Include="resources_manager.cpp">
+      <Filter>头文件\资源管理器</Filter>
+    </ClCompile>
+    <ClCompile Include="state_machine.cpp">
+      <Filter>头文件\角色\状态机</Filter>
+    </ClCompile>
+    <ClCompile Include="character.cpp">
+      <Filter>头文件\角色\角色基类</Filter>
+    </ClCompile>
+    <ClCompile Include="character_manager.cpp">
+      <Filter>头文件\角色\角色基类</Filter>
+    </ClCompile>
+    <ClCompile Include="player.cpp">
+      <Filter>头文件\角色\玩家</Filter>
+    </ClCompile>
+    <ClCompile Include="player_state_nodes.cpp">
+      <Filter>头文件\角色\玩家</Filter>
+    </ClCompile>
+    <ClCompile Include="player_hit_box.cpp">
+      <Filter>头文件\角色\玩家</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="animation.h">
+      <Filter>头文件\绘图</Filter>
+    </ClInclude>
+    <ClInclude Include="atlas.h">
+      <Filter>头文件\绘图</Filter>
+    </ClInclude>
+    <ClInclude Include="util.h">
+      <Filter>头文件\工具</Filter>
+    </ClInclude>
+    <ClInclude Include="vector2.h">
+      <Filter>头文件\工具</Filter>
+    </ClInclude>
+    <ClInclude Include="collision_layer.h">
+      <Filter>头文件\碰撞</Filter>
+    </ClInclude>
+    <ClInclude Include="resources_manager.h">
+      <Filter>头文件\资源管理器</Filter>
+    </ClInclude>
+    <ClInclude Include="collision_manager.h">
+      <Filter>头文件\碰撞</Filter>
+    </ClInclude>
+    <ClInclude Include="timer.h">
+      <Filter>头文件\工具</Filter>
+    </ClInclude>
+    <ClInclude Include="state_machine.h">
+      <Filter>头文件\角色\状态机</Filter>
+    </ClInclude>
+    <ClInclude Include="state_node.h">
+      <Filter>头文件\角色\状态机</Filter>
+    </ClInclude>
+    <ClInclude Include="character.h">
+      <Filter>头文件\角色\角色基类</Filter>
+    </ClInclude>
+    <ClInclude Include="character_manager.h">
+      <Filter>头文件\角色\角色基类</Filter>
+    </ClInclude>
+    <ClInclude Include="collision_box.h">
+      <Filter>头文件\碰撞</Filter>
+    </ClInclude>
+    <ClInclude Include="player.h">
+      <Filter>头文件\角色\玩家</Filter>
+    </ClInclude>
+    <ClInclude Include="player_state_nodes.h">
+      <Filter>头文件\角色\玩家</Filter>
+    </ClInclude>
+    <ClInclude Include="player_hit_box.h">
+      <Filter>头文件\角色\玩家</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
